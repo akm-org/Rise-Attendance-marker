@@ -43,33 +43,20 @@ function dashboardRows() {
     )];
 }
 
-async function makeStatsMessage(member) {
+function makeStatsMessage(member) {
     const s = getStats(member.id);
-    const current = s.active && s.activeSince
-        ? `\n⏱️ Current session: **${formatDuration((Date.now()-s.activeSince)/1000)}**`
-        : "";
-    return [
-        `📊 **Attendance — ${member.user.username}**`, "",
-        s.active ? "🟢 Status: **Online**" : "⚫ Status: **Offline**",
-        `📅 Today: **${formatDuration(s.today)}**`,
-        `📆 This week: **${formatDuration(s.week)}**`,
-        `🗓️ This month: **${formatDuration(s.month)}**`,
-        `🏆 Lifetime: **${formatDuration(s.lifetime)}**`, current
-    ].join("\n");
+    const current = s.active && s.activeSince ? `\n⏱️ Current session: **${formatDuration((Date.now()-s.activeSince)/1000)}**` : "";
+    return [`📊 **Attendance — ${member.user.username}**`, "", s.active ? "🟢 Status: **Online**" : "⚫ Status: **Offline**", `📅 Today: **${formatDuration(s.today)}**`, `📆 This week: **${formatDuration(s.week)}**`, `🗓️ This month: **${formatDuration(s.month)}**`, `🏆 Lifetime: **${formatDuration(s.lifetime)}**`, current].join("\n");
 }
 
 async function makeLeaderboard(guild) {
     const data = getAttendance();
-    const entries = Object.entries(data.members)
-        .map(([id, record]) => ({ id, total: record.totalSeconds || 0 }))
-        .sort((a,b) => b.total-a.total).slice(0,10);
-
+    const entries = Object.entries(data.members || {}).map(([id, r]) => ({ id, total: r.totalSeconds || 0 })).sort((a,b) => b.total-a.total).slice(0,10);
     if (!entries.length) return "🏆 **Attendance Leaderboard**\n\nNo attendance data yet.";
-
     const lines = [];
-    for (let i=0; i<entries.length; i++) {
-        const member = await guild.members.fetch(entries[i].id).catch(() => null);
-        lines.push(`**${i+1}.** ${member ? member.user.username : entries[i].id} — ${formatDuration(entries[i].total)}`);
+    for (const [i, entry] of entries.entries()) {
+        const member = await guild.members.fetch(entry.id).catch(() => null);
+        lines.push(`**${i+1}.** ${member ? member.user.username : entry.id} — ${formatDuration(entry.total)}`);
     }
     return `🏆 **Attendance Leaderboard**\n\n${lines.join("\n")}`;
 }
@@ -80,41 +67,29 @@ async function execute(interaction) {
 
     if (sub === "role") {
         const role = interaction.options.getRole("role");
-        config.roleId = role.id;
-        saveConfig(config);
+        config.roleId = role.id; saveConfig(config);
         await updateLiveStatus(interaction.guild).catch(() => {});
         return interaction.editReply(`✅ Attendance role set to ${role}.`);
     }
-
     if (sub === "mark-channel") {
         const channel = interaction.options.getChannel("channel");
         if (!channel.isTextBased()) return interaction.editReply("❌ Please select a text channel.");
-        config.channelId = channel.id;
-        if (!config.dashboardChannelId) config.statusMessageId = null;
-        saveConfig(config);
+        config.channelId = channel.id; if (!config.dashboardChannelId) config.statusMessageId = null; saveConfig(config);
         return interaction.editReply(`✅ Attendance log channel set to ${channel}.`);
     }
-
     if (sub === "panel-channel") {
         const channel = interaction.options.getChannel("channel");
         if (!channel.isTextBased()) return interaction.editReply("❌ Please select a text channel.");
-        config.panelChannelId = channel.id;
-        saveConfig(config);
+        config.panelChannelId = channel.id; saveConfig(config);
         return interaction.editReply(`✅ Attendance panel channel set to ${channel}. Use \`/attendance panel\` to post the panel there.`);
     }
-
     if (sub === "dashboard-channel") {
         const channel = interaction.options.getChannel("channel");
         if (!channel.isTextBased()) return interaction.editReply("❌ Please select a text channel.");
-        config.dashboardChannelId = channel.id;
-        config.statusMessageId = null;
-        saveConfig(config);
+        config.dashboardChannelId = channel.id; config.statusMessageId = null; saveConfig(config);
         const ok = await updateLiveStatus(interaction.guild);
-        return interaction.editReply(ok
-            ? `✅ Live dashboard channel set to ${channel}.`
-            : `⚠️ Dashboard channel set to ${channel}, but I could not create the dashboard. Check permissions.`);
+        return interaction.editReply(ok ? `✅ Live dashboard channel set to ${channel}.` : `⚠️ Dashboard channel set to ${channel}, but I could not create the dashboard. Check permissions.`);
     }
-
     if (sub === "settings") {
         const role = config.roleId ? interaction.guild.roles.cache.get(config.roleId) : null;
         const channel = config.channelId ? interaction.guild.channels.cache.get(config.channelId) : null;
@@ -122,115 +97,47 @@ async function execute(interaction) {
         const dashboardChannel = config.dashboardChannelId ? interaction.guild.channels.cache.get(config.dashboardChannelId) : null;
         return interaction.editReply(`⚙️ **Attendance Settings**\n\nRole: ${role ?? "`Not configured`"}\nLog channel: ${channel ?? "`Not configured`"}\nPanel channel: ${panelChannel ?? "`Same as log channel`"}\nDashboard channel: ${dashboardChannel ?? "`Same as log channel`"}`);
     }
-
     if (sub === "test") {
         const channel = config.channelId ? await interaction.guild.channels.fetch(config.channelId).catch(() => null) : null;
         if (!channel || !channel.isTextBased()) return interaction.editReply("❌ Attendance channel is not configured or is not a text channel.");
-        try {
-            await channel.send(`🧪 **Attendance channel test** — sent by ${interaction.user}.`);
-            return interaction.editReply(`✅ Test message sent to ${channel}.`);
-        } catch (error) {
-            return interaction.editReply(`❌ Could not send to ${channel}. Error: **${error.message}** (code ${error.code || "unknown"})`);
-        }
+        try { await channel.send(`🧪 **Attendance channel test** — sent by ${interaction.user}.`); return interaction.editReply(`✅ Test message sent to ${channel}.`); }
+        catch (error) { return interaction.editReply(`❌ Could not send to ${channel}. Error: **${error.message}** (code ${error.code || "unknown"})`); }
     }
-
-    if (sub === "sync") {
-        return interaction.editReply("ℹ️ Automatic online synchronization is disabled. Staff must click **🟢 Mark Online** in the attendance panel. Going offline is still detected automatically.");
-    }
-
-    if (sub === "panel") {
-        const ok = await sendAttendancePanel(interaction.guild);
-        return interaction.editReply(ok ? "✅ Beautiful attendance panel sent to the configured panel channel." : "❌ Could not send the attendance panel.");
-    }
-
-    if (sub === "daily") {
-        const ok = await sendDailySummary(interaction.guild);
-        return interaction.editReply(ok ? "✅ Today's active-time summary was posted in the attendance channel." : "❌ Could not post the daily summary.");
-    }
-
-    if (sub === "dashboard") {
-        const ok = await updateLiveStatus(interaction.guild);
-        return interaction.editReply(ok ? "✅ Live staff dashboard created/refreshed." : "❌ Could not update the attendance dashboard.");
-    }
-
-    if (sub === "status") return interaction.editReply({content:await makeStatsMessage(interaction.member), components:dashboardRows()});
-
+    if (sub === "sync") return interaction.editReply("ℹ️ Automatic online synchronization is disabled. Staff must click **🟢 Mark Online** in the attendance panel. Going offline is still detected automatically.");
+    if (sub === "panel") return interaction.editReply((await sendAttendancePanel(interaction.guild)) ? "✅ Beautiful attendance panel sent to the configured panel channel." : "❌ Could not send the attendance panel.");
+    if (sub === "daily") return interaction.editReply((await sendDailySummary(interaction.guild)) ? "✅ Today's active-time summary was posted in the attendance channel." : "❌ Could not post the daily summary.");
+    if (sub === "dashboard") return interaction.editReply((await updateLiveStatus(interaction.guild)) ? "✅ Live staff dashboard created/refreshed." : "❌ Could not update the attendance dashboard.");
+    if (sub === "status") return interaction.editReply({content:makeStatsMessage(interaction.member),components:dashboardRows()});
     if (sub === "member") {
-        const user = interaction.options.getUser("user");
-        const member = await interaction.guild.members.fetch(user.id).catch(() => null);
-        if (!member) return interaction.editReply({content:"❌ Member not found.", flags:MessageFlags.Ephemeral});
-        return interaction.editReply({content:await makeStatsMessage(member), components:dashboardRows()});
+        const user=interaction.options.getUser("user"); const member=await interaction.guild.members.fetch(user.id).catch(()=>null);
+        if(!member) return interaction.editReply({content:"❌ Member not found.",flags:MessageFlags.Ephemeral});
+        return interaction.editReply({content:makeStatsMessage(member),components:dashboardRows()});
     }
-
-    if (sub === "leaderboard") {
-        return interaction.editReply({content:await makeLeaderboard(interaction.guild), components:dashboardRows()});
-    }
-
-    if (sub === "reset") {
-        const user = interaction.options.getUser("user");
-        resetMember(user.id);
-        return interaction.editReply(`♻️ Attendance reset for **${user.username}**.`);
-    }
+    if (sub === "leaderboard") return interaction.editReply({content:await makeLeaderboard(interaction.guild),components:dashboardRows()});
+    if (sub === "reset") { const user=interaction.options.getUser("user"); resetMember(user.id); return interaction.editReply(`♻️ Attendance reset for **${user.username}**.`); }
 }
 
 async function handleButton(interaction) {
     if (!interaction.isButton() || !interaction.customId.startsWith("attendance:")) return false;
-
-    const action = interaction.customId.split(":")[1];
+    const action=interaction.customId.split(":")[1];
     await interaction.deferUpdate();
     console.log(`[BUTTON] ${action} acknowledged for ${interaction.user?.tag || interaction.user?.id}`);
 
-    if (action === "mark-online") {
-        const config = getConfig();
-        if (!config.roleId) {
-            await interaction.followUp({content:"❌ Attendance role is not configured.", flags:MessageFlags.Ephemeral});
-            return true;
-        }
-
-        const member = interaction.member;
-        if (!member?.roles?.cache?.has(config.roleId)) {
-            await interaction.followUp({content:"❌ You are not assigned the configured attendance role.", flags:MessageFlags.Ephemeral});
-            return true;
-        }
-
-        const data = getAttendance();
-        const record = ensureMember(data, member.id);
-
-        if (record.activeSince) {
-            await interaction.followUp({
-                content:`ℹ️ You are already marked online. Your current session is **${formatDuration(Math.max(0,(Date.now()-record.activeSince)/1000))}**.`,
-                flags:MessageFlags.Ephemeral
-            });
-            return true;
-        }
-
-        record.activeSince = Date.now();
-        saveAttendance(data);
-
-        await sendAttendanceMessage(interaction.guild, member, "online", 0,
-            "Attendance started from the Mark Online button",
-            record.activeSince, null);
-
+    if(action==="mark-online"){
+        const config=getConfig();
+        if(!config.roleId){await interaction.followUp({content:"❌ Attendance role is not configured.",flags:MessageFlags.Ephemeral});return true;}
+        const member=interaction.member;
+        if(!member?.roles?.cache?.has(config.roleId)){await interaction.followUp({content:"❌ You are not assigned the configured attendance role.",flags:MessageFlags.Ephemeral});return true;}
+        const data=getAttendance(),record=ensureMember(data,member.id);
+        if(record.activeSince){await interaction.followUp({content:`ℹ️ You are already marked online. Your current session is **${formatDuration(Math.max(0,(Date.now()-record.activeSince)/1000))}**.`,flags:MessageFlags.Ephemeral});return true;}
+        record.activeSince=Date.now(); saveAttendance(data);
+        await sendAttendanceMessage(interaction.guild,member,"online",0,"Attendance started from the Mark Online button",record.activeSince,null);
         await updateLiveStatus(interaction.guild);
-
-        await interaction.followUp({
-            content:"✅ You are now marked **online**. Your attendance timer has started.",
-            flags:MessageFlags.Ephemeral
-        });
+        await interaction.followUp({content:"✅ You are now marked **online**. Your attendance timer has started.",flags:MessageFlags.Ephemeral});
         return true;
     }
-
-    if (action === "status" || action === "refresh") {
-        await interaction.editReply({content:await makeStatsMessage(interaction.member),components:dashboardRows()});
-        return true;
-    }
-
-    if (action === "leaderboard") {
-        await interaction.editReply({content:await makeLeaderboard(interaction.guild),components:dashboardRows()});
-        return true;
-    }
-
+    if(action==="status"||action==="refresh"){await interaction.editReply({content:makeStatsMessage(interaction.member),components:dashboardRows()});return true;}
+    if(action==="leaderboard"){await interaction.editReply({content:await makeLeaderboard(interaction.guild),components:dashboardRows()});return true;}
     return true;
 }
-
-module.exports = { commands, execute, handleButton, dashboardRows, makeStatsMessage, makeLeaderboard };
+module.exports={commands,execute,handleButton};

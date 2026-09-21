@@ -1,7 +1,7 @@
 {
   "name": "discord-attendance-bot",
-  "version": "2.0.0",
-  "description": "Discord staff attendance bot with Render health endpoint and robust Gateway connection",
+  "version": "2.1.0",
+  "description": "Discord staff attendance bot with Render health endpoint",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
