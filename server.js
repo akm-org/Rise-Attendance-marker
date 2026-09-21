@@ -5,12 +5,13 @@ const PORT = Number(process.env.PORT) || 3000;
 const server = http.createServer((req, res) => {
   if (req.url === "/" || req.url === "/health") {
     res.writeHead(200, {
-      "Content-Type": "application/json; charset=utf-8"
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
     });
     res.end(JSON.stringify({
       status: "online",
       service: "discord-attendance-bot",
-      gateway: "diagnostic-v20"
+      version: "2.0.0"
     }));
     return;
   }
@@ -22,7 +23,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🌐 Render Web Service listening on 0.0.0.0:${PORT}`);
+  console.log(`🌐 HTTP health server listening on 0.0.0.0:${PORT}`);
 });
 
 module.exports = server;

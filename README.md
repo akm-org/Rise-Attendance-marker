@@ -1,59 +1,47 @@
-# Discord Attendance Bot v20 — Gateway Diagnostic
+# Discord Attendance Bot v2.0 — Gateway Fix
 
-This build is specifically for diagnosing why the Discord bot remains offline on Render.
+This build diagnoses and fixes the startup path that was hanging at:
 
-## Diagnostic changes
+`Preparing to connect to the gateway...`
 
-- Uses only `GatewayIntentBits.Guilds`
-- Adds Discord.js Gateway debug logging
-- Adds shard ready/reconnect/resume/disconnect/error logging
-- Adds session invalidation logging
-- Adds a hard 20-second timeout around `client.login()`
-- Adds a 10-second timeout for READY after login resolves
-- Never prints the Discord bot token
-- Keeps the Render Web Service health endpoint
+### Changes
 
-## Render
+- Pins Render to Node.js 22.x.
+- Uses discord.js 14.25.1 exactly.
+- Tests unauthenticated Discord `/gateway`.
+- Tests authenticated `/gateway/bot` using the configured bot token.
+- Opens a raw WebSocket directly to Discord and waits for the Hello packet.
+- Only after those checks pass does it start discord.js.
+- Restores the required Guilds + GuildMembers + GuildPresences intents for the actual client.
+- Adds Gateway/shard diagnostics.
+- Keeps the Render HTTP health endpoint.
 
-Build command:
+### Render
 
-```text
-npm install
-```
+Build:
+`npm install`
 
-Start command:
+Start:
+`npm start`
 
-```text
-npm start
-```
+Environment:
+`DISCORD_TOKEN=...`
+`GUILD_ID=...`
 
-Required environment variables:
+### Important
 
-```text
-DISCORD_TOKEN=your_bot_token
-GUILD_ID=your_server_id
-```
+Do not expose the actual Discord bot token in chat or screenshots. If the token shown in any log is a real usable token, regenerate it in Discord Developer Portal and update Render immediately.
 
-Open the Render logs after deployment.
+### Expected
 
-Expected successful diagnostic:
+The startup should show:
 
-```text
-🔌 Calling client.login()...
-[DISCORD DEBUG] ...
-🔑 client.login() resolved.
-[DISCORD DEBUG] ...
-✅ DISCORD READY: ...
-🏠 Cached guild count: ...
-✅ TARGET GUILD FOUND: ...
-🎉 GATEWAY TEST PASSED
-```
+`✅ Discord Gateway URL...`
+`✅ Gateway URL from authenticated endpoint...`
+`✅ RAW WEBSOCKET OPENED`
+`✅ DISCORD HELLO RECEIVED...`
+`🎉 PRE-FLIGHT PASSED`
+`✅ DISCORD READY`
+`🎉 DISCORD LOGIN SUCCESSFUL — BOT IS ONLINE`
 
-If login hangs, the build will now explicitly report:
-
-```text
-❌ LOGIN FAILED / TIMED OUT
-Discord client.login() did not resolve within 20 seconds.
-```
-
-Do not paste the actual DISCORD_TOKEN into chat or logs.
+If the raw WebSocket fails, the error will now identify the network/Gateway stage directly.
