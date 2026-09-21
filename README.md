@@ -60,3 +60,13 @@ Startup now prints:
 - Gateway/client/shard errors
 
 If the bot is not reaching `🎉 BOT STARTUP COMPLETE`, the Render logs identify the startup stage that is failing.
+
+## v1.5 Gateway isolation test
+
+This diagnostic build connects with only the non-privileged `Guilds` Gateway intent.
+It is intended to determine whether the Discord Gateway connection problem is caused by
+the privileged Presence/Server Members intents.
+
+If v1.5 reaches `🎉 BOT STARTUP COMPLETE`, the token and Gateway connection are working
+and the problem is isolated to privileged intents. The final attendance build can then
+restore Presence and Server Members intents.

@@ -1,6 +1,6 @@
 {
   "name": "discord-attendance-bot",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Discord staff attendance bot with Render Web Service health endpoint",
   "main": "src/index.js",
   "scripts": {
