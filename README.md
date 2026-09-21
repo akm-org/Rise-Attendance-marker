@@ -30,3 +30,13 @@ Nicknames are never modified.
 ## Discord intents
 
 Enable Server Members Intent and Presence Intent.
+
+## Interaction troubleshooting
+
+The bot logs every slash-command and button interaction with an `[INTERACTION]` or `[BUTTON]` line.
+If Discord reports "The application did not respond", check Render logs for these lines.
+
+Render:
+- Service: Web Service
+- Build: `npm install`
+- Start: `npm start`

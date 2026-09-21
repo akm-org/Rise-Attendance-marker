@@ -77,29 +77,48 @@ client.once(Events.ClientReady, async ready => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+    const startedAt = Date.now();
+
     try {
+        console.log(
+            `[INTERACTION] ${interaction.type} ${interaction.isButton() ? interaction.customId : interaction.isChatInputCommand() ? interaction.commandName : "other"} by ${interaction.user?.tag || interaction.user?.id || "unknown"}`
+        );
+
         if (interaction.isButton()) {
             await handleButton(interaction);
+            console.log(`[INTERACTION] Button handled in ${Date.now() - startedAt}ms`);
             return;
         }
 
         if (!interaction.isChatInputCommand()) return;
         if (interaction.commandName !== "attendance") return;
 
-        await interaction.deferReply({ ephemeral: false });
+        // Acknowledge immediately. Discord requires an interaction response within ~3 seconds.
+        await interaction.deferReply({ flags: 0 });
+
+        console.log(`[INTERACTION] Deferred /attendance in ${Date.now() - startedAt}ms`);
+
         await execute(interaction);
+
+        console.log(`[INTERACTION] /attendance completed in ${Date.now() - startedAt}ms`);
     } catch (error) {
         console.error("[INTERACTION ERROR]", error);
 
-        const response = {
-            content: "❌ An error occurred while processing that interaction."
-        };
-
         try {
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply(response);
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    content: `❌ Interaction error: ${error.message || "Unknown error"}`
+                });
+            } else if (interaction.replied) {
+                await interaction.followUp({
+                    content: `❌ Interaction error: ${error.message || "Unknown error"}`,
+                    flags: 64
+                });
             } else {
-                await interaction.reply({ ...response, flags: 64 });
+                await interaction.reply({
+                    content: `❌ Interaction error: ${error.message || "Unknown error"}`,
+                    flags: 64
+                });
             }
         } catch (replyError) {
             console.error("[INTERACTION RESPONSE ERROR]", replyError);

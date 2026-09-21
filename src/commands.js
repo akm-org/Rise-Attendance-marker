@@ -178,6 +178,7 @@ async function handleButton(interaction) {
 
     const action = interaction.customId.split(":")[1];
     await interaction.deferUpdate();
+    console.log(`[BUTTON] ${action} acknowledged for ${interaction.user?.tag || interaction.user?.id}`);
 
     if (action === "mark-online") {
         const config = getConfig();
