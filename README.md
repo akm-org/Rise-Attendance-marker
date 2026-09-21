@@ -1,38 +1,52 @@
-# Discord Attendance Bot v2.1
+# Discord Attendance Bot v2.2
 
-## Important fix
+This build specifically diagnoses the Render -> Discord Gateway connection.
 
-The previous build failed because it explicitly called Discord's authenticated `/gateway/bot` REST endpoint before connecting. Render then received HTTP 429 / Cloudflare error 1015.
+## What changed
 
-This final build **does not make that preflight request**.
+The previous v2.1 repeatedly hung at:
 
-It connects directly with discord.js and includes retry/timeout diagnostics.
+`Preparing to connect to the gateway...`
 
-## Runtime
+v2.2 first opens a raw WebSocket to Discord's public Gateway.
 
-- Node.js 22.x
-- discord.js 14.25.1
-- dotenv 16.6.1
+It does NOT call `/gateway/bot`, which previously returned 429 / error 1015.
+
+If the raw WebSocket is rejected or times out, the bot exits instead of repeatedly hammering Discord.
+
+If the raw Gateway works, it starts discord.js normally.
+
+Optional proxy:
+`DISCORD_PROXY=http://user:password@host:port`
 
 ## Render
 
-Build command:
+Build:
 `npm install`
 
-Start command:
+Start:
 `npm start`
 
-Environment:
-- `DISCORD_TOKEN`
-- `GUILD_ID`
+Required:
+`DISCORD_TOKEN`
+`GUILD_ID`
 
-## Attendance
+Optional:
+`DISCORD_PROXY`
 
-- Manual `🟢 Mark Online` starts a session.
-- Online/idle/dnd does not automatically start a session.
-- Discord offline automatically ends an active session.
-- Daily / weekly / monthly / lifetime time is tracked.
-- Configurable attendance role.
-- Separate log/panel/dashboard channels.
-- Live dashboard edits one message instead of spamming.
-- Nicknames are never changed.
+## Attendance features
+
+- Manual 🟢 Mark Online
+- Discord offline automatically ends active session
+- Daily / weekly / monthly / lifetime tracking
+- Configurable attendance role
+- Attendance log channel
+- Attendance panel channel
+- Live dashboard channel
+- Live online count
+- Buttons and slash commands
+- No nickname changes
+
+## Important
+
+If the raw Gateway test reports HTTP 429 / 1015, this is an outbound IP rate-limit/network issue, not an attendance-code issue. Do not repeatedly redeploy/restart; use a stable outbound IP/proxy or move the Gateway bot to a VPS.
