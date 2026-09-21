@@ -1,11 +1,5 @@
 const http=require("node:http");
 const PORT=Number(process.env.PORT)||3000;
-const server=http.createServer((req,res)=>{
-  if(req.url==="/"||req.url==="/health"){
-    res.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});
-    res.end(JSON.stringify({status:"online",service:"discord-attendance-bot",version:"2.1.0"}));return;
-  }
-  res.writeHead(404,{"Content-Type":"application/json; charset=utf-8"});res.end(JSON.stringify({error:"Not found"}));
-});
+const server=http.createServer((req,res)=>{if(req.url==="/"||req.url==="/health"){res.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify({status:"online",service:"discord-attendance-bot",version:"2.4.0"}));return;}res.writeHead(404,{"Content-Type":"application/json; charset=utf-8"});res.end(JSON.stringify({error:"Not found"}));});
 server.listen(PORT,"0.0.0.0",()=>console.log(`🌐 Render HTTP server listening on 0.0.0.0:${PORT}`));
 module.exports=server;

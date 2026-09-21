@@ -1,4 +1,5 @@
-.env
-.env.*
 node_modules/
+.env
 *.log
+discord.csv
+data/*.tmp

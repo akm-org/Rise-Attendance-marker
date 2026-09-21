@@ -1,1 +1,7 @@
-{"roleId":null,"channelId":null,"panelChannelId":null,"dashboardChannelId":null,"statusMessageId":null}
+{
+  "roleId": null,
+  "channelId": null,
+  "panelChannelId": null,
+  "dashboardChannelId": null,
+  "statusMessageId": null
+}
