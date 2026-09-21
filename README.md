@@ -40,3 +40,9 @@ Render:
 - Service: Web Service
 - Build: `npm install`
 - Start: `npm start`
+
+## v1.3 command registration fix
+
+Slash commands are now registered **after Discord login** and use the application ID from the logged-in bot token (`client.user.id`). `CLIENT_ID` is no longer required.
+
+This prevents a common failure where `CLIENT_ID` belongs to a different Discord application than `DISCORD_TOKEN`: the command can appear in Discord, but the running bot never receives the interaction.

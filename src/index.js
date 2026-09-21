@@ -19,7 +19,7 @@ const {
 } = require("./database");
 const { handlePresence, updateLiveStatus } = require("./attendance");
 
-for (const key of ["DISCORD_TOKEN", "CLIENT_ID", "GUILD_ID"]) {
+for (const key of ["DISCORD_TOKEN", "GUILD_ID"]) {
     if (!process.env[key]) {
         console.error(`Missing ${key} in environment variables`);
         process.exit(1);
@@ -35,17 +35,24 @@ const client = new Client({
 });
 
 async function registerCommands() {
+    if (!client.user?.id) {
+        throw new Error("Discord client is not logged in yet; cannot determine application ID.");
+    }
+
+    const applicationId = client.user.id;
     const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
+
+    console.log(`🔧 Registering slash commands for application ${applicationId} in guild ${process.env.GUILD_ID}`);
 
     await rest.put(
         Routes.applicationGuildCommands(
-            process.env.CLIENT_ID,
+            applicationId,
             process.env.GUILD_ID
         ),
         { body: commands.map(command => command.toJSON()) }
     );
 
-    console.log("✅ Slash commands registered.");
+    console.log("✅ Slash commands registered for the same application as the logged-in bot.");
 }
 
 client.once(Events.ClientReady, async ready => {
@@ -94,7 +101,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (interaction.commandName !== "attendance") return;
 
         // Acknowledge immediately. Discord requires an interaction response within ~3 seconds.
-        await interaction.deferReply({ flags: 0 });
+        await interaction.deferReply();
 
         console.log(`[INTERACTION] Deferred /attendance in ${Date.now() - startedAt}ms`);
 
@@ -186,6 +193,14 @@ process.on("unhandledRejection", error => console.error("Unhandled rejection:", 
 process.on("uncaughtException", error => console.error("Uncaught exception:", error));
 
 (async () => {
-    await registerCommands();
-    await client.login(process.env.DISCORD_TOKEN);
+    try {
+        // Login first so the application ID always comes from the actual bot token.
+        // This prevents CLIENT_ID/token mismatches from creating commands that the
+        // running bot never receives.
+        await client.login(process.env.DISCORD_TOKEN);
+        await registerCommands();
+    } catch (error) {
+        console.error("❌ Startup error:", error);
+        process.exit(1);
+    }
 })();
