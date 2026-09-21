@@ -26,6 +26,11 @@ for (const key of ["DISCORD_TOKEN", "GUILD_ID"]) {
     }
 }
 
+console.log("🚀 Attendance bot process starting...");
+console.log(`🔐 DISCORD_TOKEN present: ${Boolean(process.env.DISCORD_TOKEN)}`);
+console.log(`🏠 GUILD_ID present: ${Boolean(process.env.GUILD_ID)}`);
+console.log(`🌐 PORT: ${process.env.PORT || "3000"}`);
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -56,7 +61,7 @@ async function registerCommands() {
 }
 
 client.once(Events.ClientReady, async ready => {
-    console.log(`✅ Logged in as ${ready.user.tag}`);
+    console.log(`✅ DISCORD READY: Logged in as ${ready.user.tag} (${ready.user.id})`);
 
     ready.user.setActivity("Staff Attendance", {
         type: ActivityType.Watching
@@ -189,18 +194,55 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     }
 });
 
+client.on(Events.Error, error => {
+    console.error("❌ DISCORD CLIENT ERROR:", error);
+});
+
+client.on(Events.Warn, warning => {
+    console.warn("⚠️ DISCORD WARNING:", warning);
+});
+
+client.on(Events.ShardError, error => {
+    console.error("❌ DISCORD SHARD ERROR:", error);
+});
+
+client.on(Events.ShardDisconnect, (event, shardId) => {
+    console.error(`🔌 DISCORD SHARD DISCONNECTED: shard=${shardId} code=${event?.code} reason=${event?.reason || "unknown"}`);
+});
+
+client.on(Events.ShardReconnecting, shardId => {
+    console.warn(`🔄 DISCORD SHARD RECONNECTING: shard=${shardId}`);
+});
+
 process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
 process.on("uncaughtException", error => console.error("Uncaught exception:", error));
 
 (async () => {
     try {
-        // Login first so the application ID always comes from the actual bot token.
-        // This prevents CLIENT_ID/token mismatches from creating commands that the
-        // running bot never receives.
-        await client.login(process.env.DISCORD_TOKEN);
+        console.log("🔌 Connecting to Discord Gateway...");
+        const loginResult = await client.login(process.env.DISCORD_TOKEN);
+        console.log(`🔑 client.login() resolved with token for user: ${loginResult}`);
+
+        console.log("⏳ Waiting for Discord READY event before registering commands...");
+        await new Promise((resolve, reject) => {
+            if (client.isReady()) return resolve();
+
+            const timeout = setTimeout(() => {
+                reject(new Error("Discord READY event was not received within 30 seconds."));
+            }, 30000);
+
+            client.once(Events.ClientReady, () => {
+                clearTimeout(timeout);
+                resolve();
+            });
+        });
+
+        console.log(`📦 Discord client ready. Application ID: ${client.user.id}`);
         await registerCommands();
+        console.log("🎉 BOT STARTUP COMPLETE");
     } catch (error) {
-        console.error("❌ Startup error:", error);
+        console.error("❌ STARTUP ERROR:", error);
+        console.error(error?.stack || error);
         process.exit(1);
     }
 })();

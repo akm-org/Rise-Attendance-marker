@@ -46,3 +46,17 @@ Render:
 Slash commands are now registered **after Discord login** and use the application ID from the logged-in bot token (`client.user.id`). `CLIENT_ID` is no longer required.
 
 This prevents a common failure where `CLIENT_ID` belongs to a different Discord application than `DISCORD_TOKEN`: the command can appear in Discord, but the running bot never receives the interaction.
+
+## v1.4 Render diagnostics
+
+Startup now prints:
+- whether `DISCORD_TOKEN` is present
+- whether `GUILD_ID` is present
+- the Render port
+- Gateway connection progress
+- Discord READY status
+- application ID
+- command registration status
+- Gateway/client/shard errors
+
+If the bot is not reaching `🎉 BOT STARTUP COMPLETE`, the Render logs identify the startup stage that is failing.
