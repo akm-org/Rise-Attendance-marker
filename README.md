@@ -1,72 +1,59 @@
-# Discord Staff Attendance Bot v15
+# Discord Attendance Bot v20 — Gateway Diagnostic
 
-Render Web Service compatible Discord attendance bot.
+This build is specifically for diagnosing why the Discord bot remains offline on Render.
+
+## Diagnostic changes
+
+- Uses only `GatewayIntentBits.Guilds`
+- Adds Discord.js Gateway debug logging
+- Adds shard ready/reconnect/resume/disconnect/error logging
+- Adds session invalidation logging
+- Adds a hard 20-second timeout around `client.login()`
+- Adds a 10-second timeout for READY after login resolves
+- Never prints the Discord bot token
+- Keeps the Render Web Service health endpoint
 
 ## Render
 
-- Service Type: **Web Service**
-- Build Command: `npm install`
-- Start Command: `npm start`
-- No hardcoded Render port is required. The health server uses `process.env.PORT`.
+Build command:
 
-The HTTP endpoint responds on `/` and `/health`.
+```text
+npm install
+```
 
-## Environment variables
+Start command:
 
-Configure these in Render Environment Variables:
+```text
+npm start
+```
 
-- `DISCORD_TOKEN`
-- `CLIENT_ID`
-- `GUILD_ID`
+Required environment variables:
 
-Do not upload `.env`.
+```text
+DISCORD_TOKEN=your_bot_token
+GUILD_ID=your_server_id
+```
 
-## Attendance
+Open the Render logs after deployment.
 
-Attendance is manually started with **🟢 Mark Online**. Discord going offline automatically ends an active session.
+Expected successful diagnostic:
 
-Nicknames are never modified.
+```text
+🔌 Calling client.login()...
+[DISCORD DEBUG] ...
+🔑 client.login() resolved.
+[DISCORD DEBUG] ...
+✅ DISCORD READY: ...
+🏠 Cached guild count: ...
+✅ TARGET GUILD FOUND: ...
+🎉 GATEWAY TEST PASSED
+```
 
-## Discord intents
+If login hangs, the build will now explicitly report:
 
-Enable Server Members Intent and Presence Intent.
+```text
+❌ LOGIN FAILED / TIMED OUT
+Discord client.login() did not resolve within 20 seconds.
+```
 
-## Interaction troubleshooting
-
-The bot logs every slash-command and button interaction with an `[INTERACTION]` or `[BUTTON]` line.
-If Discord reports "The application did not respond", check Render logs for these lines.
-
-Render:
-- Service: Web Service
-- Build: `npm install`
-- Start: `npm start`
-
-## v1.3 command registration fix
-
-Slash commands are now registered **after Discord login** and use the application ID from the logged-in bot token (`client.user.id`). `CLIENT_ID` is no longer required.
-
-This prevents a common failure where `CLIENT_ID` belongs to a different Discord application than `DISCORD_TOKEN`: the command can appear in Discord, but the running bot never receives the interaction.
-
-## v1.4 Render diagnostics
-
-Startup now prints:
-- whether `DISCORD_TOKEN` is present
-- whether `GUILD_ID` is present
-- the Render port
-- Gateway connection progress
-- Discord READY status
-- application ID
-- command registration status
-- Gateway/client/shard errors
-
-If the bot is not reaching `🎉 BOT STARTUP COMPLETE`, the Render logs identify the startup stage that is failing.
-
-## v1.5 Gateway isolation test
-
-This diagnostic build connects with only the non-privileged `Guilds` Gateway intent.
-It is intended to determine whether the Discord Gateway connection problem is caused by
-the privileged Presence/Server Members intents.
-
-If v1.5 reaches `🎉 BOT STARTUP COMPLETE`, the token and Gateway connection are working
-and the problem is isolated to privileged intents. The final attendance build can then
-restore Presence and Server Members intents.
+Do not paste the actual DISCORD_TOKEN into chat or logs.

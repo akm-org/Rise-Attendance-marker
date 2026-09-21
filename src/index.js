@@ -2,247 +2,169 @@ require("../server");
 require("dotenv").config();
 
 const {
-    Client,
-    GatewayIntentBits,
-    Events,
-    REST,
-    Routes,
-    ActivityType
+  Client,
+  GatewayIntentBits,
+  Events,
+  REST,
+  Routes,
+  ActivityType
 } = require("discord.js");
 
-const { commands, execute, handleButton } = require("./commands");
-const {
-    getConfig,
-    getAttendance,
-    saveAttendance,
-    ensureMember
-} = require("./database");
-const { handlePresence, updateLiveStatus } = require("./attendance");
+const LOGIN_TIMEOUT_MS = 20000;
 
 for (const key of ["DISCORD_TOKEN", "GUILD_ID"]) {
-    if (!process.env[key]) {
-        console.error(`Missing ${key} in environment variables`);
-        process.exit(1);
-    }
+  if (!process.env[key] || !process.env[key].trim()) {
+    console.error(`❌ Missing required environment variable: ${key}`);
+    process.exit(1);
+  }
 }
 
-console.log("🚀 Attendance bot process starting...");
-console.log(`🔐 DISCORD_TOKEN present: ${Boolean(process.env.DISCORD_TOKEN)}`);
-console.log(`🏠 GUILD_ID present: ${Boolean(process.env.GUILD_ID)}`);
+const token = process.env.DISCORD_TOKEN.trim();
+const guildId = process.env.GUILD_ID.trim();
+
+console.log("🚀 Attendance bot v20 Gateway diagnostic starting...");
+console.log(`🔐 DISCORD_TOKEN present: true (length=${token.length})`);
+console.log(`🏠 GUILD_ID present: true (length=${guildId.length})`);
 console.log(`🌐 PORT: ${process.env.PORT || "3000"}`);
+console.log("🧪 Diagnostic mode: Guilds intent ONLY");
+console.log("⏱️ Discord login timeout: 20 seconds");
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences
-    ]
+  intents: [GatewayIntentBits.Guilds]
 });
 
-async function registerCommands() {
-    if (!client.user?.id) {
-        throw new Error("Discord client is not logged in yet; cannot determine application ID.");
-    }
-
-    const applicationId = client.user.id;
-    const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-
-    console.log(`🔧 Registering slash commands for application ${applicationId} in guild ${process.env.GUILD_ID}`);
-
-    await rest.put(
-        Routes.applicationGuildCommands(
-            applicationId,
-            process.env.GUILD_ID
-        ),
-        { body: commands.map(command => command.toJSON()) }
-    );
-
-    console.log("✅ Slash commands registered for the same application as the logged-in bot.");
-}
-
-client.once(Events.ClientReady, async ready => {
-    console.log(`✅ DISCORD READY: Logged in as ${ready.user.tag} (${ready.user.id})`);
-
-    ready.user.setActivity("Staff Attendance", {
-        type: ActivityType.Watching
-    });
-
-    const guild = await ready.guilds.fetch(process.env.GUILD_ID).catch(() => null);
-
-    if (!guild) {
-        console.error("❌ Guild not found. Check GUILD_ID.");
-        return;
-    }
-
-    const config = getConfig();
-
-    if (!config.roleId) {
-        console.log("⚠️ No attendance role configured. Use /attendance role.");
-        return;
-    }
-
-    await updateLiveStatus(guild);
-
-    console.log("✅ Attendance database synchronized.");
-    console.log("✅ Live staff status synchronized.");
-    console.log("ℹ️ Nicknames are completely disabled.");
+// Gateway diagnostics
+client.on(Events.Debug, message => {
+  console.log(`[DISCORD DEBUG] ${message}`);
 });
 
-client.on(Events.InteractionCreate, async interaction => {
-    const startedAt = Date.now();
-
-    try {
-        console.log(
-            `[INTERACTION] ${interaction.type} ${interaction.isButton() ? interaction.customId : interaction.isChatInputCommand() ? interaction.commandName : "other"} by ${interaction.user?.tag || interaction.user?.id || "unknown"}`
-        );
-
-        if (interaction.isButton()) {
-            await handleButton(interaction);
-            console.log(`[INTERACTION] Button handled in ${Date.now() - startedAt}ms`);
-            return;
-        }
-
-        if (!interaction.isChatInputCommand()) return;
-        if (interaction.commandName !== "attendance") return;
-
-        // Acknowledge immediately. Discord requires an interaction response within ~3 seconds.
-        await interaction.deferReply();
-
-        console.log(`[INTERACTION] Deferred /attendance in ${Date.now() - startedAt}ms`);
-
-        await execute(interaction);
-
-        console.log(`[INTERACTION] /attendance completed in ${Date.now() - startedAt}ms`);
-    } catch (error) {
-        console.error("[INTERACTION ERROR]", error);
-
-        try {
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ Interaction error: ${error.message || "Unknown error"}`
-                });
-            } else if (interaction.replied) {
-                await interaction.followUp({
-                    content: `❌ Interaction error: ${error.message || "Unknown error"}`,
-                    flags: 64
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ Interaction error: ${error.message || "Unknown error"}`,
-                    flags: 64
-                });
-            }
-        } catch (replyError) {
-            console.error("[INTERACTION RESPONSE ERROR]", replyError);
-        }
-    }
-});
-
-client.on(Events.PresenceUpdate, async (oldPresence, newPresence) => {
-    try {
-        const member = newPresence?.member || oldPresence?.member;
-        if (!member) return;
-
-        const config = getConfig();
-        if (!config.roleId) return;
-        if (!member.roles.cache.has(config.roleId)) return;
-
-        const oldStatus = oldPresence?.status ?? "offline";
-        const newStatus = newPresence?.status ?? "offline";
-
-        const oldOnline = ["online", "idle", "dnd"].includes(oldStatus);
-        const newOnline = ["online", "idle", "dnd"].includes(newStatus);
-
-        if (oldOnline === newOnline || newOnline) return;
-
-        await handlePresence(member, "offline", true);
-        await updateLiveStatus(member.guild);
-    } catch (error) {
-        console.error("[PRESENCE ERROR]", error);
-    }
-});
-
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-    try {
-        const config = getConfig();
-        if (!config.roleId) return;
-
-        const hadRole = oldMember.roles.cache.has(config.roleId);
-        const hasRole = newMember.roles.cache.has(config.roleId);
-
-        if (!hadRole && hasRole) {
-            console.log(`[ROLE] ${newMember.user.username} received attendance role; waiting for manual Mark Online.`);
-            return;
-        }
-
-        if (hadRole && !hasRole) {
-            const data = getAttendance();
-            const record = ensureMember(data, newMember.id);
-
-            if (record.activeSince) {
-                const start = record.activeSince;
-                const end = Date.now();
-                const seconds = Math.max(0, (end - start) / 1000);
-                record.sessions.push({ start, end });
-                record.totalSeconds += seconds;
-                record.activeSince = null;
-                saveAttendance(data);
-            }
-        }
-    } catch (error) {
-        console.error("[MEMBER UPDATE ERROR]", error);
-    }
+client.on(Events.Warn, message => {
+  console.warn(`[DISCORD WARN] ${message}`);
 });
 
 client.on(Events.Error, error => {
-    console.error("❌ DISCORD CLIENT ERROR:", error);
+  console.error("❌ DISCORD CLIENT ERROR:", error);
+  console.error(error?.stack || error);
 });
 
-client.on(Events.Warn, warning => {
-    console.warn("⚠️ DISCORD WARNING:", warning);
+client.on(Events.Invalidated, () => {
+  console.error("❌ DISCORD SESSION INVALIDATED");
 });
 
-client.on(Events.ShardError, error => {
-    console.error("❌ DISCORD SHARD ERROR:", error);
+client.on(Events.ShardReady, (id, unavailableGuilds) => {
+  console.log(`✅ SHARD READY: shard=${id}, unavailableGuilds=${unavailableGuilds?.size ?? 0}`);
 });
 
-client.on(Events.ShardDisconnect, (event, shardId) => {
-    console.error(`🔌 DISCORD SHARD DISCONNECTED: shard=${shardId} code=${event?.code} reason=${event?.reason || "unknown"}`);
+client.on(Events.ShardReconnecting, id => {
+  console.warn(`🔄 SHARD RECONNECTING: shard=${id}`);
 });
 
-client.on(Events.ShardReconnecting, shardId => {
-    console.warn(`🔄 DISCORD SHARD RECONNECTING: shard=${shardId}`);
+client.on(Events.ShardResume, (id, replayedEvents) => {
+  console.log(`♻️ SHARD RESUMED: shard=${id}, replayedEvents=${replayedEvents}`);
 });
 
-process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
-process.on("uncaughtException", error => console.error("Uncaught exception:", error));
+client.on(Events.ShardDisconnect, (event, id) => {
+  console.error(
+    `🔌 SHARD DISCONNECTED: shard=${id}, code=${event?.code ?? "unknown"}, reason=${event?.reason || "unknown"}`
+  );
+});
+
+client.on(Events.ShardError, (error, id) => {
+  console.error(`❌ SHARD ERROR: shard=${id}`);
+  console.error(error?.stack || error);
+});
+
+client.once(Events.ClientReady, async ready => {
+  console.log(`✅ DISCORD READY: ${ready.user.tag} (${ready.user.id})`);
+  console.log(`🏠 Cached guild count: ${ready.guilds.cache.size}`);
+
+  try {
+    ready.user.setActivity("Staff Attendance", {
+      type: ActivityType.Watching
+    });
+  } catch (error) {
+    console.warn("⚠️ Could not set bot activity:", error.message);
+  }
+
+  try {
+    const guild = await ready.guilds.fetch(guildId);
+    console.log(`✅ TARGET GUILD FOUND: ${guild.name} (${guild.id})`);
+  } catch (error) {
+    console.error("❌ TARGET GUILD FETCH FAILED");
+    console.error(error?.message || error);
+  }
+
+  console.log("🎉 GATEWAY TEST PASSED");
+  console.log("ℹ️ This v20 build intentionally uses Guilds intent only.");
+  console.log("ℹ️ Once Gateway works, the full attendance intents/features can be restored.");
+});
+
+async function loginWithTimeout() {
+  console.log("🔌 Calling client.login()...");
+
+  const loginPromise = client.login(token);
+
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(
+        `Discord client.login() did not resolve within ${LOGIN_TIMEOUT_MS / 1000} seconds. ` +
+        "The process is hanging before Discord READY."
+      ));
+    }, LOGIN_TIMEOUT_MS);
+  });
+
+  try {
+    const result = await Promise.race([loginPromise, timeoutPromise]);
+    console.log("🔑 client.login() resolved.");
+    console.log(`🔑 Logged-in bot user id: ${result}`);
+    return result;
+  } catch (error) {
+    console.error("❌ LOGIN FAILED / TIMED OUT");
+    console.error(error?.message || error);
+    console.error(error?.stack || "");
+    throw error;
+  }
+}
 
 (async () => {
-    try {
-        console.log("🔌 Connecting to Discord Gateway...");
-        const loginResult = await client.login(process.env.DISCORD_TOKEN);
-        console.log(`🔑 client.login() resolved with token for user: ${loginResult}`);
+  try {
+    await loginWithTimeout();
 
-        console.log("⏳ Waiting for Discord READY event before registering commands...");
-        await new Promise((resolve, reject) => {
-            if (client.isReady()) return resolve();
+    if (!client.isReady()) {
+      console.log("⏳ login() resolved but READY has not fired yet. Waiting up to 10 seconds...");
 
-            const timeout = setTimeout(() => {
-                reject(new Error("Discord READY event was not received within 30 seconds."));
-            }, 30000);
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("READY event did not fire within 10 seconds after client.login() resolved."));
+        }, 10000);
 
-            client.once(Events.ClientReady, () => {
-                clearTimeout(timeout);
-                resolve();
-            });
+        if (client.isReady()) {
+          clearTimeout(timer);
+          resolve();
+          return;
+        }
+
+        client.once(Events.ClientReady, () => {
+          clearTimeout(timer);
+          resolve();
         });
-
-        console.log(`📦 Discord client ready. Application ID: ${client.user.id}`);
-        await registerCommands();
-        console.log("🎉 BOT STARTUP COMPLETE");
-    } catch (error) {
-        console.error("❌ STARTUP ERROR:", error);
-        console.error(error?.stack || error);
-        process.exit(1);
+      });
     }
+
+    console.log("🎉 BOT STARTUP COMPLETE");
+  } catch (error) {
+    console.error("❌ STARTUP DIAGNOSTIC FAILED");
+    console.error(error?.stack || error);
+    process.exit(1);
+  }
 })();
+
+process.on("unhandledRejection", error => {
+  console.error("❌ UNHANDLED REJECTION:", error);
+  console.error(error?.stack || error);
+});
+
+process.on("uncaughtException", error => {
+  console.error("❌ UNCAUGHT EXCEPTION:", error);
+  console.error(error?.stack || error);
+});
