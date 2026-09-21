@@ -1,7 +1,7 @@
 {
   "name": "discord-attendance-bot",
-  "version": "1.0.0",
-  "description": "Discord staff attendance and online/offline nickname bot",
+  "version": "1.1.0",
+  "description": "Discord staff attendance bot with Render Web Service health endpoint",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

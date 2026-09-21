@@ -88,7 +88,7 @@ async function execute(interaction) {
 
     if (sub === "mark-channel") {
         const channel = interaction.options.getChannel("channel");
-        if (!channel.isTextBased()) return interaction.reply({content:"❌ Please select a text channel.", flags:MessageFlags.Ephemeral});
+        if (!channel.isTextBased()) return interaction.editReply("❌ Please select a text channel.");
         config.channelId = channel.id;
         if (!config.dashboardChannelId) config.statusMessageId = null;
         saveConfig(config);
@@ -124,21 +124,13 @@ async function execute(interaction) {
     }
 
     if (sub === "test") {
-        const channel = config.channelId
-            ? await interaction.guild.channels.fetch(config.channelId).catch(() => null)
-            : null;
-
-        if (!channel || !channel.isTextBased()) {
-            return interaction.editReply("❌ Attendance channel is not configured or is not a text channel. Use `/attendance mark-channel #channel`.");
-        }
-
+        const channel = config.channelId ? await interaction.guild.channels.fetch(config.channelId).catch(() => null) : null;
+        if (!channel || !channel.isTextBased()) return interaction.editReply("❌ Attendance channel is not configured or is not a text channel.");
         try {
             await channel.send(`🧪 **Attendance channel test** — sent by ${interaction.user}.`);
             return interaction.editReply(`✅ Test message sent to ${channel}.`);
         } catch (error) {
-            return interaction.editReply(
-                `❌ Could not send to ${channel}. Error: **${error.message}** (code ${error.code || "unknown"})`
-            );
+            return interaction.editReply(`❌ Could not send to ${channel}. Error: **${error.message}** (code ${error.code || "unknown"})`);
         }
     }
 
@@ -148,29 +140,17 @@ async function execute(interaction) {
 
     if (sub === "panel") {
         const ok = await sendAttendancePanel(interaction.guild);
-        return interaction.editReply(
-            ok
-                ? "✅ Beautiful attendance panel sent to the configured panel channel."
-                : "❌ Could not send the attendance panel. Check the panel channel and bot permissions."
-        );
+        return interaction.editReply(ok ? "✅ Beautiful attendance panel sent to the configured panel channel." : "❌ Could not send the attendance panel.");
     }
 
     if (sub === "daily") {
         const ok = await sendDailySummary(interaction.guild);
-        return interaction.editReply(
-            ok
-                ? "✅ Today's active-time summary was posted in the attendance channel."
-                : "❌ Could not post the daily summary. Check the attendance channel configuration and bot permissions."
-        );
+        return interaction.editReply(ok ? "✅ Today's active-time summary was posted in the attendance channel." : "❌ Could not post the daily summary.");
     }
 
     if (sub === "dashboard") {
         const ok = await updateLiveStatus(interaction.guild);
-        return interaction.editReply(
-            ok
-                ? "✅ Live staff dashboard created/refreshed in the configured dashboard channel."
-                : "❌ Could not update the attendance dashboard."
-        );
+        return interaction.editReply(ok ? "✅ Live staff dashboard created/refreshed." : "❌ Could not update the attendance dashboard.");
     }
 
     if (sub === "status") return interaction.editReply({content:await makeStatsMessage(interaction.member), components:dashboardRows()});
@@ -185,6 +165,7 @@ async function execute(interaction) {
     if (sub === "leaderboard") {
         return interaction.editReply({content:await makeLeaderboard(interaction.guild), components:dashboardRows()});
     }
+
     if (sub === "reset") {
         const user = interaction.options.getUser("user");
         resetMember(user.id);
@@ -196,20 +177,18 @@ async function handleButton(interaction) {
     if (!interaction.isButton() || !interaction.customId.startsWith("attendance:")) return false;
 
     const action = interaction.customId.split(":")[1];
-
-    // Acknowledge immediately to prevent "The application did not respond".
     await interaction.deferUpdate();
 
     if (action === "mark-online") {
         const config = getConfig();
         if (!config.roleId) {
-            await interaction.followUp({ content: "❌ Attendance role is not configured.", flags: MessageFlags.Ephemeral });
+            await interaction.followUp({content:"❌ Attendance role is not configured.", flags:MessageFlags.Ephemeral});
             return true;
         }
 
         const member = interaction.member;
         if (!member?.roles?.cache?.has(config.roleId)) {
-            await interaction.followUp({ content: "❌ You are not assigned the configured attendance role.", flags: MessageFlags.Ephemeral });
+            await interaction.followUp({content:"❌ You are not assigned the configured attendance role.", flags:MessageFlags.Ephemeral});
             return true;
         }
 
@@ -218,8 +197,8 @@ async function handleButton(interaction) {
 
         if (record.activeSince) {
             await interaction.followUp({
-                content: `ℹ️ You are already marked online. Your current session is **${formatDuration(Math.max(0, (Date.now() - record.activeSince) / 1000))}**.`,
-                flags: MessageFlags.Ephemeral
+                content:`ℹ️ You are already marked online. Your current session is **${formatDuration(Math.max(0,(Date.now()-record.activeSince)/1000))}**.`,
+                flags:MessageFlags.Ephemeral
             });
             return true;
         }
@@ -227,37 +206,26 @@ async function handleButton(interaction) {
         record.activeSince = Date.now();
         saveAttendance(data);
 
-        await sendAttendanceMessage(
-            interaction.guild,
-            member,
-            "online",
-            0,
+        await sendAttendanceMessage(interaction.guild, member, "online", 0,
             "Attendance started from the Mark Online button",
-            record.activeSince,
-            null
-        );
+            record.activeSince, null);
+
         await updateLiveStatus(interaction.guild);
 
         await interaction.followUp({
-            content: "✅ You are now marked **online**. Your attendance timer has started.",
-            flags: MessageFlags.Ephemeral
+            content:"✅ You are now marked **online**. Your attendance timer has started.",
+            flags:MessageFlags.Ephemeral
         });
         return true;
     }
 
     if (action === "status" || action === "refresh") {
-        await interaction.editReply({
-            content: await makeStatsMessage(interaction.member),
-            components: dashboardRows()
-        });
+        await interaction.editReply({content:await makeStatsMessage(interaction.member),components:dashboardRows()});
         return true;
     }
 
     if (action === "leaderboard") {
-        await interaction.editReply({
-            content: await makeLeaderboard(interaction.guild),
-            components: dashboardRows()
-        });
+        await interaction.editReply({content:await makeLeaderboard(interaction.guild),components:dashboardRows()});
         return true;
     }
 

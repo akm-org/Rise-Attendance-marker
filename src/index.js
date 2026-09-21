@@ -1,3 +1,4 @@
+require("../server");
 require("dotenv").config();
 
 const {
@@ -20,7 +21,7 @@ const { handlePresence, updateLiveStatus } = require("./attendance");
 
 for (const key of ["DISCORD_TOKEN", "CLIENT_ID", "GUILD_ID"]) {
     if (!process.env[key]) {
-        console.error(`Missing ${key} in .env`);
+        console.error(`Missing ${key} in environment variables`);
         process.exit(1);
     }
 }
@@ -47,11 +48,6 @@ async function registerCommands() {
     console.log("✅ Slash commands registered.");
 }
 
-function isOnline(member) {
-    const status = member.presence?.status;
-    return status === "online" || status === "idle" || status === "dnd";
-}
-
 client.once(Events.ClientReady, async ready => {
     console.log(`✅ Logged in as ${ready.user.tag}`);
 
@@ -66,8 +62,6 @@ client.once(Events.ClientReady, async ready => {
         return;
     }
 
-    // IMPORTANT: do NOT call guild.members.fetch() without a user ID.
-    // That requests the whole guild member list and can hit Discord opcode-8 rate limits.
     const config = getConfig();
 
     if (!config.roleId) {
@@ -79,7 +73,7 @@ client.once(Events.ClientReady, async ready => {
 
     console.log("✅ Attendance database synchronized.");
     console.log("✅ Live staff status synchronized.");
-    console.log("ℹ️ Nicknames are completely disabled for attendance.");
+    console.log("ℹ️ Nicknames are completely disabled.");
 });
 
 client.on(Events.InteractionCreate, async interaction => {
@@ -94,7 +88,6 @@ client.on(Events.InteractionCreate, async interaction => {
 
         await interaction.deferReply({ ephemeral: false });
         await execute(interaction);
-
     } catch (error) {
         console.error("[INTERACTION ERROR]", error);
 
@@ -106,10 +99,7 @@ client.on(Events.InteractionCreate, async interaction => {
             if (interaction.deferred || interaction.replied) {
                 await interaction.editReply(response);
             } else {
-                await interaction.reply({
-                    ...response,
-                    flags: 64
-                });
+                await interaction.reply({ ...response, flags: 64 });
             }
         } catch (replyError) {
             console.error("[INTERACTION RESPONSE ERROR]", replyError);
@@ -123,9 +113,6 @@ client.on(Events.PresenceUpdate, async (oldPresence, newPresence) => {
         if (!member) return;
 
         const config = getConfig();
-
-        // Only the configured attendance role determines eligibility.
-        // Other roles do not matter.
         if (!config.roleId) return;
         if (!member.roles.cache.has(config.roleId)) return;
 
@@ -135,18 +122,10 @@ client.on(Events.PresenceUpdate, async (oldPresence, newPresence) => {
         const oldOnline = ["online", "idle", "dnd"].includes(oldStatus);
         const newOnline = ["online", "idle", "dnd"].includes(newStatus);
 
-        // Attendance is manually started with the Mark Online button.
-        // Presence is only used to automatically close an active attendance
-        // session when the staff member actually goes offline.
         if (oldOnline === newOnline || newOnline) return;
-
-        console.log(
-            `[PRESENCE] ${member.user.username}: ${oldStatus} -> ${newStatus} (auto offline check)`
-        );
 
         await handlePresence(member, "offline", true);
         await updateLiveStatus(member.guild);
-
     } catch (error) {
         console.error("[PRESENCE ERROR]", error);
     }
@@ -160,14 +139,11 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
         const hadRole = oldMember.roles.cache.has(config.roleId);
         const hasRole = newMember.roles.cache.has(config.roleId);
 
-        // Assigning the attendance role NEVER starts attendance.
-        // Staff must click Mark Online in the attendance panel.
         if (!hadRole && hasRole) {
             console.log(`[ROLE] ${newMember.user.username} received attendance role; waiting for manual Mark Online.`);
             return;
         }
 
-        // If the attendance role is removed, close any active session safely.
         if (hadRole && !hasRole) {
             const data = getAttendance();
             const record = ensureMember(data, newMember.id);
@@ -181,21 +157,14 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
                 record.activeSince = null;
                 saveAttendance(data);
             }
-
-            console.log(`[ROLE] ${newMember.user.username} removed from attendance role; active session closed if one existed.`);
         }
     } catch (error) {
         console.error("[MEMBER UPDATE ERROR]", error);
     }
 });
 
-process.on("unhandledRejection", error =>
-    console.error("Unhandled rejection:", error)
-);
-
-process.on("uncaughtException", error =>
-    console.error("Uncaught exception:", error)
-);
+process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
+process.on("uncaughtException", error => console.error("Uncaught exception:", error));
 
 (async () => {
     await registerCommands();
