@@ -1,6 +1,6 @@
 {
   "name": "discord-attendance-bot",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Discord staff attendance bot with Render health endpoint",
   "main": "src/index.js",
   "scripts": {
@@ -11,7 +11,8 @@
     "node": "22.x"
   },
   "dependencies": {
-    "discord.js": "14.27.0",
-    "dotenv": "16.6.1"
+    "discord.js": "^14.27.0",
+    "dotenv": "16.6.1",
+    "ws": "^8.21.3"
   }
 }
