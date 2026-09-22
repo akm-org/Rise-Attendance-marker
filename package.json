@@ -1,7 +1,7 @@
 {
   "name": "discord-attendance-bot",
-  "version": "2.5.0",
-  "description": "Discord staff attendance bot with Render health endpoint",
+  "version": "2.6.0",
+  "description": "Discord staff attendance bot with safe Gateway diagnostics and Render health endpoint",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "discord.js": "^14.27.0",
-    "dotenv": "16.6.1",
     "ws": "^8.21.3"
   }
 }

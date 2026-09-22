@@ -1,5 +1,25 @@
 require("../server");
-require("dotenv").config();
+const fs = require("node:fs");
+const path = require("node:path");
+
+// Lightweight .env loader so local PC testing does not depend on dotenv.
+try {
+  const envPath = path.join(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    for (const raw of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const i = line.indexOf("=");
+      if (i < 1) continue;
+      const key = line.slice(0, i).trim();
+      let value = line.slice(i + 1).trim();
+      if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+      if (!process.env[key]) process.env[key] = value;
+    }
+  }
+} catch (e) {
+  console.warn("⚠️ Could not read .env:", e.message);
+}
 
 const {
   Client,
@@ -18,13 +38,13 @@ const { handlePresence, updateLiveStatus } = require("./attendance");
 const TOKEN = String(process.env.DISCORD_TOKEN || "").trim();
 const GUILD_ID = String(process.env.GUILD_ID || "").trim();
 
-console.log("🚀 Discord Attendance Bot v2.5");
+console.log("🚀 Discord Attendance Bot v2.6");
 console.log(`🟢 Node.js: ${process.version}`);
 console.log("🟢 Discord library: discord.js 14.27.x");
 console.log(`🟢 Token present: ${TOKEN ? "true" : "false"} (length=${TOKEN.length})`);
 console.log(`🟢 Guild ID present: ${GUILD_ID ? "true" : "false"} (length=${GUILD_ID.length})`);
 console.log(`🌐 PORT: ${process.env.PORT || "3000"}`);
-console.log("🔌 Discord connection: same standard client.login() pattern as AFK-RISE");
+console.log("🔌 Discord connection: same standard client.login() pattern as AFK-RISE + safe Gateway diagnostics");
 console.log("🚫 No /gateway/bot preflight");
 console.log("🚫 No /gateway preflight");
 console.log("🚫 No custom WebSocket test");
